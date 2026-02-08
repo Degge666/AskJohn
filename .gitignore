@@ -1,45 +1,5 @@
-# macOS / Editor
-.DS_Store
-.AppleDouble
-._*
-*~
-*.swp
-*.bak
-
-# IDE / Editor
-.idea/
-*.iml
-.vscode/
-*.swp
-*~
-
-# Private Data
-config.sh
-config.local.sh
-*.secrets
-.secrets/
-*.key
-*.pass
-*.token
-*.priv
-
-# Wordlists & große Dateien
-wordlists/
-rockyou*
-*.txt.gz
-*.7z
-*.zip
-
-# John the Ripper Artefacts
-*.rec
-*.log
-john.pot*
-*.pot
-session-*
-
-# Temporary / Build
-temp/
-*.local
-src/askjohn.sh
 config.sh
 config.sh.bak
+*.tmp
+.DS_Store
+.idea/
