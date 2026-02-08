@@ -1,0 +1,35 @@
+# macOS / Editor
+.DS_Store
+.AppleDouble
+._*
+*~
+*.swp
+*.bak
+
+# Persönliche / sensible Dateien – NIE committen!
+config.sh
+config.local.sh
+*.secrets
+.secrets/
+*.key
+*.pass
+*.token
+*.priv
+
+# Wordlists & große Dateien
+wordlists/
+rockyou*
+*.txt.gz
+*.7z
+*.zip
+
+# John the Ripper Artefakte
+*.rec
+*.log
+john.pot*
+*.pot
+session-*
+
+# Temporär / Build
+temp/
+*.local
