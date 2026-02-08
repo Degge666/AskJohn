@@ -1,16 +1,18 @@
 #!/usr/bin/env bash
-# AskJohn – config.example.sh
-# Kopiere nach ../config.sh und passe Werte an – diese Datei wird committed!
+# =============================================================================
+# AskJohn - Example Configuration File
+# This is a template – copy to ../config.sh and adjust values if needed
+# NEVER commit your real config.sh!
+# =============================================================================
 
-JOHN_BIN=""                     # leer = Auto-Erkennung
+# Detected / recommended values (do not change unless necessary)
 
-WORDLIST_CANDIDATES=(
-    "$HOME/wordlists/rockyou.txt"
-    "$HOME/wordlists/rockyou.txt.gz"
-    "/usr/share/wordlists/rockyou.txt"
-    "/usr/share/wordlists/rockyou.txt.gz"
-)
+OS_FAMILY="macOS"          # or "Linux" etc.
+JOHN_BIN="/opt/homebrew/bin/john"   # full path to john binary
 
-DEFAULT_HASH_FILE="hashes.txt"
-SSH_TARGET=""                   # z.B. "user@192.168.1.100"
-USE_COLORS=true
+# Optional overrides / additional paths (uncomment and adjust if needed)
+# WORDLIST_DEFAULT="$HOME/wordlists/rockyou.txt"
+# ZIP2JOHN_BIN="${JOHN_BIN%/*}/zip2john"
+# RAR2JOHN_BIN="${JOHN_BIN%/*}/rar2john"
+
+# ── End of example configuration ──

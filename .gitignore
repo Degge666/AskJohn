@@ -6,7 +6,14 @@
 *.swp
 *.bak
 
-# Persönliche / sensible Dateien – NIE committen!
+# IDE / Editor
+.idea/
+*.iml
+.vscode/
+*.swp
+*~
+
+# Private Data
 config.sh
 config.local.sh
 *.secrets
@@ -23,13 +30,13 @@ rockyou*
 *.7z
 *.zip
 
-# John the Ripper Artefakte
+# John the Ripper Artefacts
 *.rec
 *.log
 john.pot*
 *.pot
 session-*
 
-# Temporär / Build
+# Temporary / Build
 temp/
 *.local
