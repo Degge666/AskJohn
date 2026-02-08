@@ -40,3 +40,6 @@ session-*
 # Temporary / Build
 temp/
 *.local
+src/askjohn.sh
+config.sh
+config.sh.bak
