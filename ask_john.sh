@@ -2,77 +2,82 @@
 # =============================================================================
 # ASKJOHN - THE MAIN GATE (Entry Point)
 # =============================================================================
-# Description: Central controller for the AskJohn framework.
-#              Initializes environment and routes the seeker to the views.
 
 # --- 1. INITIALIZE ENVIRONMENT ---
 export BASE_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
-# Load common utilities (Colors, Header, etc.)
-if [[ -f "$BASE_DIR/src/common.sh" ]]; then
-    source "$BASE_DIR/src/common.sh"
+# Load global configuration
+if [[ -f "$BASE_DIR/config.sh" ]]; then
+    source "$BASE_DIR/config.sh"
+    export JOHN_PATH="${JOHN_BIN:-john}"
 else
-    # Fallback if common.sh is missing (basic colors)
-    RED='\033[0;31m'; GREEN='\033[0;32m'; WHITE='\033[1;37m';
-    CYAN='\033[0;36m'; YELLOW='\033[1;33m'; NC='\033[0m'; BLUE='\033[0;34m'
-    print_header() { echo -e "\n=== $1 ==="; }
+    export JOHN_PATH="john"
 fi
 
-# Pre-load UI Controllers
-[[ -f "$BASE_DIR/src/cracking_ui.sh" ]] && source "$BASE_DIR/src/cracking_ui.sh"
-[[ -f "$BASE_DIR/src/wordlist_library_ui.sh" ]] && source "$BASE_DIR/src/wordlist_library_ui.sh"
+# Load common utilities
+[[ -f "$BASE_DIR/src/common.sh" ]] && source "$BASE_DIR/src/common.sh"
 
 # --- 2. GLOBAL SETTINGS ---
-export SSH_CMD=""
+export SSH_HOST=""
 
 # --- 3. MAIN ADVENTURE LOOP ---
 while true; do
     print_header "THE MAIN GATE"
 
-    echo -e "Current Realm: $([[ -z "$SSH_CMD" ]] && echo -e "${GREEN}Local Path${NC}" || echo -e "${YELLOW}Remote Bridge (SSH)${NC}")"
-    echo "------------------------------------------------"
-    echo -e " 1) ${WHITE}Ask John to solve a Riddle${NC} (Cracking Camp)"
-    echo -e " 2) ${WHITE}Ask an Oracle${NC} (Get Hash-Info)"
-    echo -e " 3) ${WHITE}Go the Scavenger's Path${NC} (Get Hashes from Source)"
-    echo -e " 4) ${WHITE}The Great Library${NC} (Manage Wordlists)"
-    echo "------------------------------------------------"
-    echo -e " s) ${CYAN}Establish Ethereal Bridge (SSH)${NC}"
-    echo -e " q) ${RED}Leave the Realm${NC}"
-    echo "------------------------------------------------"
-    read -p "Where shall your journey lead? " choice
+    # Status Display
+    if [[ -n "$SSH_HOST" ]]; then
+        echo -e "Current Realm: ${YELLOW}Remote Bridge ($SSH_HOST)${NC}"
+    else
+        echo -e "Current Realm: ${GREEN}Local Path${NC}"
+    fi
 
-    case "$choice" in
+    echo "------------------------------------------------"
+    echo -e " 1) ${CYAN}Give John a Riddle${NC} (Hash Management)"
+    echo -e " 2) Ask John to solve a Riddle (Cracking Camp)"
+    echo -e " 3) The Great Library (Manage Wordlists)"
+    echo -e " 4) Ask an Oracle (General Hash-Info)"
+    echo "------------------------------------------------"
+    echo -e " s) Establish Ethereal Bridge (SSH)"
+    echo -e " q) Leave the Realm"
+    echo "------------------------------------------------"
+    read -p "Where shall your journey lead? " main_choice
+
+    case "$main_choice" in
         1)
-            enter_cracking_camp
+            # Hash Management (Add, Paste, Scavenge)
+            source "$BASE_DIR/src/cracking_ui.sh"
+            add_new_riddle
             ;;
         2)
-            # Hier wurde die oracle_ui.sh durch get_hash_info_ui.sh ersetzt
+            # The Cracking Table (Status, Solve, Rules)
+            source "$BASE_DIR/src/cracking_ui.sh"
+            enter_cracking_camp
+            ;;
+        3)
+            # Wordlists
+            if [[ -f "$BASE_DIR/src/library_ui.sh" ]]; then
+                source "$BASE_DIR/src/library_ui.sh"
+                manage_library
+            else
+                echo -e "${RED}Library not found.${NC}"
+                sleep 1
+            fi
+            ;;
+        4)
+            # General Oracle
             if [[ -f "$BASE_DIR/src/get_hash_info_ui.sh" ]]; then
                 source "$BASE_DIR/src/get_hash_info_ui.sh"
                 enter_oracle_chamber
             else
-                echo -e "${RED}Error: src/get_hash_info_ui.sh not found!${NC}"
-                echo -e "${YELLOW}The Oracle is missing its script...${NC}"
-                sleep 2
+                echo -e "${RED}Oracle chamber is locked.${NC}"
+                sleep 1
             fi
-            ;;
-        3)
-            echo -e "${YELLOW}The Scavenger is out in the woods... (Coming soon)${NC}"
-            sleep 2
-            ;;
-        4)
-            manage_wordlist_library
             ;;
         s)
             print_header "ETHEREAL BRIDGE"
-            read -p "Enter user@host (or leave empty for local): " remote
-            if [[ -n "$remote" ]]; then
-                export SSH_CMD="ssh -t $remote"
-                echo -e "${GREEN}Bridge established!${NC}"
-            else
-                export SSH_CMD=""
-                echo -e "${YELLOW}Bridge collapsed. Working locally.${NC}"
-            fi
+            read -p "Enter user@host (leave empty for local): " remote
+            export SSH_HOST="$remote"
+            [[ -n "$SSH_HOST" ]] && echo -e "${GREEN}Bridge established!${NC}" || echo -e "${YELLOW}Bridge collapsed.${NC}"
             sleep 1
             ;;
         q)

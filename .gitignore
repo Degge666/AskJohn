@@ -7,7 +7,13 @@ geheim.*
 
 # --- Databases & Local Indexes ---
 lib/wordlists.db
+lib/artifact_registry.db
 *.db
+
+# Framework internals
+lib/artifact_registry.db
+lib/wordlists.db
+config.sh
 
 # --- Large Files & Wordlists ---
 lib/rockyou.txt
@@ -21,6 +27,14 @@ old/
 config.sh
 .DS_Store
 
+
 # --- System & IDE ---
 .vscode/
 .idea/
+
+# John the Ripper artifacts
+*.pot
+*.rec
+*.log
+temp/*
+!temp/.gitkeep
