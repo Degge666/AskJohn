@@ -1,5 +1,26 @@
-config.sh
-config.sh.bak
+# --- Private & Temp Data (The Cellar) ---
+temp/
+*.hash
 *.tmp
+*.info
+geheim.*
+
+# --- Databases & Local Indexes ---
+lib/wordlists.db
+*.db
+
+# --- Large Files & Wordlists ---
+lib/rockyou.txt
+*.txt
+*.lst
+!README.md
+
+# --- Backups & Sensitive Configs ---
+old/
+*.bak
+config.sh
 .DS_Store
+
+# --- System & IDE ---
+.vscode/
 .idea/

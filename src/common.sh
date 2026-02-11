@@ -1,64 +1,74 @@
-#!/usr/bin/env bash
+#!/bin/bash
 # =============================================================================
-# AskJohn – common.sh
-# Shared helpers, colors and config loading
+# AskJohn – src/common.sh (The Sorcery & Dispatcher)
 # =============================================================================
 
-set -uo pipefail
+# --- VISUAL STYLES ---
+export RED='\033[0;31m'; export GREEN='\033[0;32m'; export YELLOW='\033[1;33m'
+export BLUE='\033[0;34m'; export CYAN='\033[0;36m'; export WHITE='\033[1;37m'; export NC='\033[0m'
 
-# ── ANSI Color Codes (müssen vor allen anderen Zugriffen definiert sein) ─────
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-CYAN='\033[0;36m'     # ← das fehlte oder war nicht erreichbar
-PURPLE='\033[0;35m'
-NC='\033[0m'
+# --- OS DETECTION ---
+case "$(uname -s)" in
+    Darwin) export OS_TYPE="macos" ;;
+    Linux)  export OS_TYPE="linux" ;;
+    *)      export OS_TYPE="unknown" ;;
+esac
 
-# ── Central config file ─────────────────────────────────────────────────────
-CONFIG_FILE="${SCRIPT_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}/../config.sh"
-
-# ── Helper: Load config safely ──────────────────────────────────────────────
-load_config() {
-    if [[ -f "$CONFIG_FILE" ]]; then
-        source "$CONFIG_FILE"
-        echo -e "${GREEN}Configuration loaded: $CONFIG_FILE${NC}"
-    else
-        echo -e "${RED}Error: config.sh not found at $CONFIG_FILE${NC}"
-        echo "Run setup-john-env.sh first"
-        exit 1
-    fi
-}
-
-# ── Print header (Pi-Control style) ─────────────────────────────────────────
+# --- UI: CLEAN HEADER ---
+# Clears the screen to keep the "Adventure Card" clean and focused.
 print_header() {
-    local title="$1"
     clear
-    echo -e "${CYAN}================================================${NC}"
-    echo -e "${CYAN}       ASKJOHN - $title${NC}"
-    echo -e "${CYAN}================================================${NC}"
+    echo -e "${BLUE}================================================${NC}"
+    echo -e "${BLUE}       ASKJOHN - $1${NC}"
+    echo -e "${BLUE}================================================${NC}"
 }
 
-# ── Update WORDLISTS in config.sh ───────────────────────────────────────────
-update_wordlists_in_config() {
-    if [[ ! -f "$CONFIG_FILE" ]]; then
-        echo -e "${RED}config.sh missing – cannot update${NC}"
-        return 1
+# --- THE DISPATCHER (Logic Separation) ---
+# This is the core engine that decides WHERE the spell is cast.
+invoke_spell() {
+    local cmd="$1"
+
+    # 1. Let the user refine the spell via UI-specific input
+    local refined_cmd=$(edit_command "$cmd")
+    [[ "$refined_cmd" == "ABORT" || -z "$refined_cmd" ]] && return 1
+
+    echo -e "${YELLOW}Casting spell...${NC}\n"
+
+    # 2. Execution Logic: Local vs. Ethereal Bridge (SSH)
+    if [[ -z "$SSH_CMD" ]]; then
+        # Local execution
+        eval "$refined_cmd"
+    else
+        # Remote execution via established bridge
+        $SSH_CMD "$refined_cmd"
     fi
 
-    cp "$CONFIG_FILE" "${CONFIG_FILE}.bak" 2>/dev/null || true
+    return $?
+}
 
-    {
-        grep -v '^WORDLISTS=' "$CONFIG_FILE" || true
-        echo ""
-        echo "# Wordlists – updated $(date '+%Y-%m-%d %H:%M:%S')"
-        echo "declare -a WORDLISTS=("
-        for p in "${WORDLISTS[@]}"; do
-            printf "    %q\n" "$p"
-        done
-        echo ")"
-    } > "${CONFIG_FILE}.tmp"
-
-    mv "${CONFIG_FILE}.tmp" "$CONFIG_FILE"
-    echo -e "${GREEN}config.sh updated – ${#WORDLISTS[@]} wordlists total${NC}"
+# --- UI: COMMAND EDITOR ---
+# Handles the interactive part of command confirmation.
+edit_command() {
+    local initial_cmd="$1"
+    if [[ "$OS_TYPE" == "macos" ]]; then
+        # Use macOS specific popup for a cleaner adventure feel
+        local result=$(osascript <<EOT
+            tell application "System Events"
+                activate
+                try
+                    set res to display dialog "Finalize your spell:" default answer "$initial_cmd" buttons {"Cancel", "Cast"} default button "Cast" with title "Spell Refiner"
+                    return text returned of res
+                on error
+                    return "ABORT"
+                end try
+            end tell
+EOT
+        )
+        echo "$result"
+    else
+        # Fallback for Linux or remote shells
+        echo -e "${YELLOW}Refine your spell (Use arrows to edit):${NC}"
+        read -e -i "$initial_cmd" -p "> " edited
+        echo "$edited"
+    fi
 }
