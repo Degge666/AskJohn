@@ -1,6 +1,6 @@
 #!/bin/bash
 # =============================================================================
-# AskJohn - src/cracking_ui.sh (Full Artifact Management & Combat)
+# AskJohn - src/cracking_ui.sh (The Refined Artifact Cellar)
 # =============================================================================
 
 source "$BASE_DIR/lib/john_wrapper.sh"
@@ -34,8 +34,25 @@ explore_garden() {
             ((found++))
         fi
     done
-    echo -e "${GREEN}Garden synchronized. $found new artifacts secured.${NC}"
+    [[ $found -gt 0 ]] && echo -e "${GREEN}Garden synchronized. $found new artifacts secured.${NC}" || echo -e "${YELLOW}No new artifacts found in the garden.${NC}"
     sleep 1
+}
+
+purge_artifact() {
+    local arts=()
+    [[ -s "$REGISTRY" ]] && while read -r line; do arts+=("$line"); done < "$REGISTRY"
+    echo -e "${RED}WHICH RIDDLE SHALL BE STRUCK FROM THE RECORDS?${NC}"
+    read -p "Enter ID (or 'c' to cancel): " p_id
+    if [[ "$p_id" =~ ^[0-9]+$ ]] && [ "$p_id" -le "${#arts[@]}" ]; then
+        local idx=$(( ${#arts[@]} - p_id ))
+        local target="${arts[$idx]}"
+        echo -e "${YELLOW}Vaporizing $(basename "$target")...${NC}"
+        [[ "$target" == *"$BASE_DIR/temp/"* ]] && rm -f "$target"
+        rm -f "${target}.info"
+        grep -vxF "$target" "$REGISTRY" > "${REGISTRY}.tmp" && mv "${REGISTRY}.tmp" "$REGISTRY"
+        echo -e "${GREEN}The records have been purged.${NC}"
+        sleep 1
+    fi
 }
 
 # --- VIEW: The Artifact Table ---
@@ -43,7 +60,6 @@ display_artifact_table() {
     clean_registry
     local arts=()
     [[ -s "$REGISTRY" ]] && while read -r line; do arts+=("$line"); done < "$REGISTRY"
-
     echo -e "\n${WHITE}EXPLORE RIDDLES (Hash Overview)${NC}"
     echo "------------------------------------------------------------------------------------------"
     if [ ${#arts[@]} -eq 0 ]; then
@@ -57,22 +73,12 @@ display_artifact_table() {
             local p="${arts[$i]}"
             local type="-"
             [[ -f "${p}.info" ]] && type=$(head -n 1 "${p}.info" | cut -c1-14)
-
             local is_cracked=$($JOHN_PATH --show "$p" 2>/dev/null | grep -E "([1-9][0-9]* password hash(es)? cracked|1.+) ")
             local status_text="OPEN"
             local color=$WHITE
-
-            if [[ -n "$is_cracked" ]]; then
-                status_text="SOLVED"
-                color=$GREEN
-            elif [[ "$type" == "-" || "$type" == "Unknown" ]]; then
-                status_text="UNKNOWN"
-                color=$RED
-            else
-                status_text="OPEN"
-                color=$YELLOW
-            fi
-
+            if [[ -n "$is_cracked" ]]; then status_text="SOLVED"; color=$GREEN;
+            elif [[ "$type" == "-" || "$type" == "Unknown" ]]; then status_text="UNKNOWN"; color=$RED;
+            else status_text="OPEN"; color=$YELLOW; fi
             echo -ne "${color}"
             printf "%-4s | %-15s | %-10s | %s\n" "$count" "$type" "$status_text" "$(basename "$p")"
             echo -ne "${NC}"
@@ -81,12 +87,11 @@ display_artifact_table() {
     echo "------------------------------------------------------------------------------------------"
 }
 
-# --- VIEW: Weapon Selection (Combat Mode) ---
+# --- VIEW: Weapon Selection ---
 show_weapon_selection() {
     local target="$1"
     local fmt=""
     [[ -f "${target}.info" ]] && fmt=$(head -n 1 "${target}.info" | awk '{print $1}')
-
     print_header "CHOOSE YOUR WEAPON"
     echo -e "Target: $(basename "$target")"
     echo "------------------------------------------------"
@@ -96,71 +101,76 @@ show_weapon_selection() {
     echo -e " b) Back to Details"
     echo "------------------------------------------------"
     read -p "Your choice: " weapon
-
     case "$weapon" in
         1)
             if [[ -s "$BASE_DIR/lib/wordlists.db" ]]; then
-                print_header "SELECT A SCROLL FROM THE SHELF"
+                print_header "SELECT A SCROLL"
                 local i=0; local books=()
-                while read -r line; do
-                    ((i++))
-                    books[$i]="$line"
-                    printf "${WHITE}%2d)${NC} %s\n" "$i" "$(basename "$line")"
-                done < "$BASE_DIR/lib/wordlists.db"
-
+                while read -r line; do ((i++)); books[$i]="$line"; printf "${WHITE}%2d)${NC} %s\n" "$i" "$(basename "$line")"; done < "$BASE_DIR/lib/wordlists.db"
                 read -p "Which scroll shall he read? " bc
-                if [[ "$bc" =~ ^[0-9]+$ ]] && [[ -n "${books[$bc]}" ]]; then
-                    execute_wordlist_spell "$target" "${books[$bc]}" "$fmt"
-                fi
-            else
-                echo -e "${RED}The Library is empty! Use the Great Library to add scrolls.${NC}"
-                sleep 2
-            fi
-            ;;
-        2)
-            # Single Mode: Nutzt Informationen aus dem User-Kontext/GECOS
-            execute_single_spell "$target" "$fmt"
-            ;;
+                [[ "$bc" =~ ^[0-9]+$ ]] && [[ -n "${books[$bc]}" ]] && execute_wordlist_spell "$target" "${books[$bc]}" "$fmt"
+            fi ;;
+        2) execute_single_spell "$target" "$fmt" ;;
         3)
-            # Ancient Rules Menu
-            print_header "THE FORBIDDEN MANGLING PATTERNS"
-            echo " 1) Word + Numbers  (e.g. Summer -> Summer24)"
-            echo " 2) Simple Leet     (e.g. elite -> 3l1t3)"
-            echo " 3) John's Default  (The classic ruleset)"
-            echo " b) Back"
-            read -p "Choose the mutation: " rc
+            print_header "FORBIDDEN MANGLING"
+            echo " 1) Word + Numbers  2) Simple Leet  3) John's Default"
+            read -p "Choice: " rc
             case $rc in
                 1) execute_custom_rule_spell "$target" "Az\"[0-9][0-9]\"" "$fmt" ;;
                 2) execute_custom_rule_spell "$target" "so0se3si1sa4sg9st1" "$fmt" ;;
                 3) execute_john_standard_rules "$target" "$fmt" ;;
-                *) return ;;
-            esac
-            ;;
+            esac ;;
         b) return ;;
     esac
 }
 
-# --- VIEW: Detailed Artifact Wisdom ---
 show_artifact_details() {
     local target="$1"
     while true; do
         print_header "ARTIFACT WISDOM"
         echo -e "${BLUE}Path:${NC} $target"
-        echo "----------------------------------------------------------------------"
+        echo "------------------------------------------------------------------------------------------"
 
-        # Breakdown of the hashes inside the file
+        # Tabellen-Header
+        printf "${WHITE}%-3s | %-40s | %-10s | %-15s${NC}\n" "ID" "Hash / Riddle Content" "Status" "Potential Type"
+        echo "------------------------------------------------------------------------------------------"
+
         local show_out=$($JOHN_PATH --show "$target" 2>/dev/null)
+        local count=0
+
         while read -r line; do
             [[ -z "$line" ]] && continue
+            ((count++))
+
+            # Status prüfen (Cracked oder nicht)
             local pass=$(echo "$show_out" | grep -F "$line" | cut -d: -f2)
-            if [[ -n "$pass" ]]; then
-                echo -e "Hash: ${WHITE}$line${NC} -> ${GREEN}SOLVED: $pass${NC}"
-            else
-                echo -e "Hash: ${WHITE}$line${NC} -> ${YELLOW}OPEN${NC}"
-            fi
+            local status_text="OPEN"
+            local color=$YELLOW
+            [[ -n "$pass" ]] && status_text="SOLVED" && color=$GREEN
+
+            # Kurze Pattern-Analyse für die Anzeige (identisch zur Oracle-Logik)
+            local h_content=$(echo "$line" | cut -d: -f1)
+            local h_len=${#h_content}
+            local p_type="Unknown"
+
+            case $h_len in
+                32)  p_type="MD5/NTLM" ;;
+                40)  p_type="SHA-1" ;;
+                64)  p_type="SHA-256" ;;
+                128) p_type="SHA-512" ;;
+                *)   [[ "$line" == *'$zip2$'* ]] && p_type="ZIP" || p_type="Special/Misc" ;;
+            esac
+
+            # Gekürzte Darstellung für sehr lange Hashes (z.B. ZIP)
+            local display_hash=$line
+            [[ ${#display_hash} -gt 40 ]] && display_hash="${display_hash:0:37}..."
+
+            printf "${color}%-3s | %-40s | %-10s | %-15s${NC}\n" "$count" "$display_hash" "$status_text" "$p_type"
+            [[ -n "$pass" ]] && echo -e "    ${GREEN}└─ Cracked Password: $pass${NC}"
+
         done < "$target"
 
-        echo "----------------------------------------------------------------------"
+        echo "------------------------------------------------------------------------------------------"
         echo -e " 1) Attack  2) Oracle (Identify)  3) Edit File  q) Back"
         read -p "Decision: " d
         case "$d" in
@@ -172,31 +182,69 @@ show_artifact_details() {
     done
 }
 
-# --- MAIN: Hash Management (Phase 1) ---
+# --- MAIN: Hash Management ---
 add_new_riddle() {
     while true; do
         print_header "GIVE JOHN A RIDDLE - MANAGEMENT"
         display_artifact_table
-        echo -e " 1) Import File  2) Paste String  3) Scavenger  4) Garden  q) Exit"
-        read -p "Choice: " c
-        case "$c" in
-            1) read -e -p "Path: " p; local cp="${p//\"/}"; [[ -f "$cp" ]] && cp "$cp" "$BASE_DIR/temp/" && register_artifact "$BASE_DIR/temp/$(basename "$cp")" ;;
-            2) read -p "Hash: " h; [[ -n "$h" ]] && f="$BASE_DIR/temp/man_$(date +%s).txt" && echo "$h" > "$f" && register_artifact "$f" ;;
+        echo -e " 1) Explore Garden (add Hash by Path or Filename)"
+        echo -e " 2) Write down a riddle (Add hash String)"
+        echo -e " 3) Go the Scavenger's Path (get hash from File or System)"
+        echo -e " r) ${RED}Remove Artifact${NC}"
+        echo -e " q) Back to Main Gate"
+        echo "------------------------------------------------"
+        read -p "Your choice: " choice
+
+        if [[ "$choice" == /* ]] || [[ "$choice" == *.* ]]; then
+            local src="${choice//\"/}"
+            if [[ -f "$src" ]]; then
+                local dest="$BASE_DIR/temp/$(basename "$src")"
+                cp "$src" "$dest" && register_artifact "$dest"
+                echo -e "${GREEN}Success: Artifact secured!${NC}"
+                [[ -f "$BASE_DIR/src/get_hash_info_ui.sh" ]] && source "$BASE_DIR/src/get_hash_info_ui.sh" && consult_oracle_for_file "$dest"
+            fi
+            sleep 1; continue
+        fi
+
+        case "$choice" in
+            1)
+                explore_garden
+                read -e -p "Or enter manual path to import: " p
+                if [[ -n "$p" ]]; then
+                    local clean_p="${p//\"/}"
+                    if [[ -f "$clean_p" ]]; then
+                        local dest="$BASE_DIR/temp/$(basename "$clean_p")"
+                        cp "$clean_p" "$dest" && register_artifact "$dest"
+                        echo -e "${GREEN}Success: File imported!${NC}"
+                        [[ -f "$BASE_DIR/src/get_hash_info_ui.sh" ]] && source "$BASE_DIR/src/get_hash_info_ui.sh" && consult_oracle_for_file "$dest"
+                    fi
+                fi
+                sleep 1 ;;
+            2)
+                read -p "Paste hash string: " h_code
+                if [[ -n "$h_code" ]]; then
+                    local new_file="$BASE_DIR/temp/man_$(date +%Y%m%d_%H%M%S).txt"
+                    echo "$h_code" > "$new_file" && register_artifact "$new_file"
+                    echo -e "${GREEN}Success: Riddle written down!${NC}"
+                    [[ -f "$BASE_DIR/src/get_hash_info_ui.sh" ]] && source "$BASE_DIR/src/get_hash_info_ui.sh" && consult_oracle_for_file "$new_file"
+                fi
+                sleep 1 ;;
             3) [[ -f "$BASE_DIR/src/scavenger_ui.sh" ]] && source "$BASE_DIR/src/scavenger_ui.sh" && enter_scavenger_path ;;
-            4) explore_garden ;;
+            r) purge_artifact ;;
             q) return ;;
         esac
     done
 }
 
-# --- MAIN: Cracking Camp (Phase 2) ---
 enter_cracking_camp() {
     while true; do
         print_header "THE CRACKING CAMP"
         display_artifact_table
         local arts=()
         [[ -s "$REGISTRY" ]] && while read -r line; do arts+=("$line"); done < "$REGISTRY"
-        read -p "Select ID to Attack (or q): " sel
+        echo -e "\n Select ID to start attack or 'q' to retreat:"
+        echo "------------------------------------------------"
+        read -p "ID / q: " sel
         [[ "$sel" == "q" ]] && return
         if [[ "$sel" =~ ^[0-9]+$ ]] && [ "$sel" -le "${#arts[@]}" ]; then
             show_artifact_details "${arts[$(( ${#arts[@]} - sel ))]}"
