@@ -39,3 +39,6 @@ config.sh
 temp/*
 !temp/.gitkeeptemp/*
 *.info
+temp/*
+*.rec
+.DS_Store
