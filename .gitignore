@@ -37,4 +37,5 @@ config.sh
 *.rec
 *.log
 temp/*
-!temp/.gitkeep
+!temp/.gitkeeptemp/*
+*.info
