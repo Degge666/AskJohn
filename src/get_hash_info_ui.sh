@@ -73,18 +73,21 @@ consult_oracle_for_file() {
     local final_candidates
     final_candidates=$(echo "${all_candidates[@]}" | tr ' ' '\n' | sort -u | tr '\n' ',' | sed 's/,$//')
 
-    # 3. Fallback: Falls John vage ist oder die Längenprüfung gar nichts fand
-    if [[ -z "$final_candidates" ]]; then
+    # 3. Fallback: Falls John vage ist oder die Längenprüfung nichts fand
+    if [[ -z "$final_candidates" || "$final_candidates" == "Unknown" ]]; then
         echo "------------------------------------------------"
         echo -e "${YELLOW}John is vague. Calling the Deep Spirits...${NC}"
-        local full_output=$($JOHN_PATH "$target" 2>&1)
-        local auto_format=$(echo "$full_output" | grep -i "Loaded" | head -n 1 | awk '{print $4}')
 
-        if [[ -z "$auto_format" || "$auto_format" == "hash" || "$auto_format" == "hashes" ]]; then
+        # Präzise Extraktion: Wir suchen nach dem Text in den Klammern nach "Loaded X password hashes"
+        local full_out=$($JOHN_PATH "$target" 2>&1)
+        local auto_format=$(echo "$full_out" | grep -i "Loaded" | head -n 1 | sed -n 's/.*(\([^)]*\)).*/\1/p' | cut -d',' -f1 | xargs)
+
+        # Validierung: Wir lassen nur zu, was nicht wie eine Statusmeldung aussieht
+        if [[ -n "$auto_format" && "$auto_format" != "hash"* && "$auto_format" != "loaded"* && "$auto_format" != "no"* ]]; then
+            final_candidates="$auto_format"
+        else
             deep_hash_analysis "$target"
             final_candidates="Unknown"
-        else
-            final_candidates="$auto_format"
         fi
     fi
 
