@@ -89,31 +89,17 @@ consult_oracle_for_file() {
     fi
 
     echo "------------------------------------------------"
-    echo -e "The Oracle suggests the following marks for the whole file:"
-    echo -e "${YELLOW}'$final_candidates'${NC}"
-    echo "------------------------------------------------"
-    echo -e "Shall this wisdom be carved into the records?"
-    echo -e "y) Yes, confirm all candidates"
-    echo -e "n) No, leave it unknown"
-    echo -e "m) Manual Entry (If you know it better)"
-    read -p "Decision: " o_confirm
+    echo -e "The Oracle suggests: ${YELLOW}'$final_candidates'${NC}"
 
-    case "$o_confirm" in
-        y|Y)
-            echo "$final_candidates" > "${target}.info"
-            echo -e "${GREEN}Wisdom secured: $final_candidates${NC}"
-            ;;
-        m|M)
-            echo -e "\n${WHITE}Common John-Formats:${NC} nt, raw-md5, raw-sha1, raw-sha256, zip, rar, mscash2"
-            read -p "Enter specific format: " custom_fmt
-            echo "$custom_fmt" > "${target}.info"
-            echo -e "${GREEN}Manual wisdom secured.${NC}"
-            ;;
-        *)
-            echo -e "${YELLOW}The Oracle's words remain unwritten.${NC}"
-            ;;
-    esac
-    sleep 2
+    # --- AUTOMATISCHE WEISHEIT (Keine Abfrage mehr) ---
+    if [[ -n "$final_candidates" && "$final_candidates" != "Unknown" ]]; then
+        echo "$final_candidates" > "${target}.info"
+        echo -e "${GREEN}Wisdom automatically carved into the records.${NC}"
+    else
+        echo -e "${RED}The Oracle's words remain unwritten (Unknown format).${NC}"
+    fi
+    echo "------------------------------------------------"
+    sleep 1
 }
 
 identify_string() {
@@ -126,6 +112,8 @@ identify_string() {
 
     if [[ -f "${tmp_file}.info" ]]; then
         echo "------------------------------------------------"
+        # Hier lassen wir die Abfrage zur Speicherung im Keller,
+        # da der User entscheiden muss, ob er diesen Test-Hash behalten will.
         read -p "Secure this new riddle in the cellar? (y/n): " secure
         if [[ "$secure" == "y" ]]; then
             local ts=$(date +%s)

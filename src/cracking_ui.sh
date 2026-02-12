@@ -65,22 +65,35 @@ display_artifact_table() {
     if [ ${#arts[@]} -eq 0 ]; then
         echo -e "${RED}The cellar is empty.${NC}"
     else
-        printf "${WHITE}%-4s | %-15s | %-10s | %s${NC}\n" "ID" "Type" "Status" "Artifact Name"
+        printf "${WHITE}%-4s | %-20s | %-10s | %s${NC}\n" "ID" "Type" "Status" "Artifact Name"
         echo "------------------------------------------------------------------------------------------"
         local count=0
         for (( i=${#arts[@]}-1; i>=0; i-- )); do
             ((count++))
             local p="${arts[$i]}"
-            local type="-"
-            [[ -f "${p}.info" ]] && type=$(head -n 1 "${p}.info" | cut -c1-14)
+            local type_display="-"
+
+            # --- VERBESSERTE TYP-ANZEIGE ---
+            if [[ -f "${p}.info" ]]; then
+                local raw_types=$(cat "${p}.info")
+                local first_type=$(echo "$raw_types" | cut -d, -f1)
+                local total_types=$(echo "$raw_types" | tr -cd ',' | wc -c)
+
+                if [ "$total_types" -gt 0 ]; then
+                    type_display="${first_type} (+${total_types})"
+                else
+                    type_display="$first_type"
+                fi
+            fi
+
             local is_cracked=$($JOHN_PATH --show "$p" 2>/dev/null | grep -E "([1-9][0-9]* password hash(es)? cracked|1.+) ")
             local status_text="OPEN"
             local color=$WHITE
             if [[ -n "$is_cracked" ]]; then status_text="SOLVED"; color=$GREEN;
-            elif [[ "$type" == "-" || "$type" == "Unknown" ]]; then status_text="UNKNOWN"; color=$RED;
+            elif [[ "$type_display" == "-" || "$type_display" == "Unknown" ]]; then status_text="UNKNOWN"; color=$RED;
             else status_text="OPEN"; color=$YELLOW; fi
             echo -ne "${color}"
-            printf "%-4s | %-15s | %-10s | %s\n" "$count" "$type" "$status_text" "$(basename "$p")"
+            printf "%-4s | %-20s | %-10s | %s\n" "$count" "${type_display:0:19}" "$status_text" "$(basename "$p")"
             echo -ne "${NC}"
         done
     fi
@@ -88,16 +101,47 @@ display_artifact_table() {
 }
 
 # --- VIEW: Weapon Selection ---
+s# --- LOGIC: The Multi-Weapon Attack ---
+# Diese Hilfsfunktion führt den gewählten Angriff für alle Formate aus
+execute_multi_format_attack() {
+    local target="$1"
+    local raw_fmts="$2"
+    local attack_type="$3" # "wordlist", "single", "rules", "standard"
+    local extra_param="$4" # wordlist_path oder rule_string
+
+    IFS=',' read -r -a fmt_array <<< "$raw_fmts"
+
+    for current_fmt in "${fmt_array[@]}"; do
+        print_header "ATTACKING WITH FORMAT: $current_fmt"
+        case "$attack_type" in
+            "wordlist") execute_wordlist_spell "$target" "$extra_param" "$current_fmt" ;;
+            "single")   execute_single_spell "$target" "$current_fmt" ;;
+            "rules")    execute_custom_rule_spell "$target" "$extra_param" "$current_fmt" ;;
+            "standard") execute_john_standard_rules "$target" "$current_fmt" ;;
+        esac
+
+        # Prüfen, ob nach diesem Durchgang alles geknackt wurde
+        local remaining=$($JOHN_PATH --show "$target" 2>/dev/null | grep -c "0 password hashes cracked")
+        if [[ "$remaining" == "0" ]]; then
+            echo -e "${GREEN}All riddles in this scroll have been solved!${NC}"
+            break
+        fi
+    done
+}
+
+# --- VIEW: Weapon Selection (Updated) ---
 show_weapon_selection() {
     local target="$1"
-    local fmt=""
-    [[ -f "${target}.info" ]] && fmt=$(head -n 1 "${target}.info" | awk '{print $1}')
+    local fmts="auto"
+    [[ -f "${target}.info" ]] && fmts=$(cat "${target}.info")
+
     print_header "CHOOSE YOUR WEAPON"
     echo -e "Target: $(basename "$target")"
+    echo -e "Known Patterns: ${YELLOW}$fmts${NC}"
     echo "------------------------------------------------"
-    echo -e " 1) ${WHITE}Send John to the Library${NC} (crack hash with Wordlist)"
-    echo -e " 2) ${WHITE}Torture by repeating a Word${NC} (crack hash in single mode)"
-    echo -e " 3) ${WHITE}Ancient Rules${NC} (Mangling/Custom rule cracking)"
+    echo -e " 1) ${WHITE}Send John to the Library${NC} (Wordlist Attack)"
+    echo -e " 2) ${WHITE}Torture by repeating a Word${NC} (Single Mode)"
+    echo -e " 3) ${WHITE}Ancient Rules${NC} (Custom Mangling)"
     echo -e " b) Back to Details"
     echo "------------------------------------------------"
     read -p "Your choice: " weapon
@@ -108,17 +152,17 @@ show_weapon_selection() {
                 local i=0; local books=()
                 while read -r line; do ((i++)); books[$i]="$line"; printf "${WHITE}%2d)${NC} %s\n" "$i" "$(basename "$line")"; done < "$BASE_DIR/lib/wordlists.db"
                 read -p "Which scroll shall he read? " bc
-                [[ "$bc" =~ ^[0-9]+$ ]] && [[ -n "${books[$bc]}" ]] && execute_wordlist_spell "$target" "${books[$bc]}" "$fmt"
+                [[ "$bc" =~ ^[0-9]+$ ]] && [[ -n "${books[$bc]}" ]] && execute_multi_format_attack "$target" "$fmts" "wordlist" "${books[$bc]}"
             fi ;;
-        2) execute_single_spell "$target" "$fmt" ;;
+        2) execute_multi_format_attack "$target" "$fmts" "single" ;;
         3)
             print_header "FORBIDDEN MANGLING"
             echo " 1) Word + Numbers  2) Simple Leet  3) John's Default"
             read -p "Choice: " rc
             case $rc in
-                1) execute_custom_rule_spell "$target" "Az\"[0-9][0-9]\"" "$fmt" ;;
-                2) execute_custom_rule_spell "$target" "so0se3si1sa4sg9st1" "$fmt" ;;
-                3) execute_john_standard_rules "$target" "$fmt" ;;
+                1) execute_multi_format_attack "$target" "$fmts" "rules" "Az\"[0-9][0-9]\"" ;;
+                2) execute_multi_format_attack "$target" "$fmts" "rules" "so0se3si1sa4sg9st1" ;;
+                3) execute_multi_format_attack "$target" "$fmts" "standard" ;;
             esac ;;
         b) return ;;
     esac
@@ -131,7 +175,6 @@ show_artifact_details() {
         echo -e "${BLUE}Path:${NC} $target"
         echo "------------------------------------------------------------------------------------------"
 
-        # Tabellen-Header
         printf "${WHITE}%-3s | %-40s | %-10s | %-15s${NC}\n" "ID" "Hash / Riddle Content" "Status" "Potential Type"
         echo "------------------------------------------------------------------------------------------"
 
@@ -142,13 +185,11 @@ show_artifact_details() {
             [[ -z "$line" ]] && continue
             ((count++))
 
-            # Status prüfen (Cracked oder nicht)
             local pass=$(echo "$show_out" | grep -F "$line" | cut -d: -f2)
             local status_text="OPEN"
             local color=$YELLOW
             [[ -n "$pass" ]] && status_text="SOLVED" && color=$GREEN
 
-            # Kurze Pattern-Analyse für die Anzeige (identisch zur Oracle-Logik)
             local h_content=$(echo "$line" | cut -d: -f1)
             local h_len=${#h_content}
             local p_type="Unknown"
@@ -161,7 +202,6 @@ show_artifact_details() {
                 *)   [[ "$line" == *'$zip2$'* ]] && p_type="ZIP" || p_type="Special/Misc" ;;
             esac
 
-            # Gekürzte Darstellung für sehr lange Hashes (z.B. ZIP)
             local display_hash=$line
             [[ ${#display_hash} -gt 40 ]] && display_hash="${display_hash:0:37}..."
 
