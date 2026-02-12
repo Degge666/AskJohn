@@ -38,6 +38,11 @@ convert_artifact() {
                 pdf2john "$source_file" > "$output_file" 2>/dev/null
             fi
             ;;
+        "unshadow")
+            # --- NEU: System Extraktion ---
+            echo -e "${YELLOW}Requesting root powers to merge /etc/shadow...${NC}"
+            sudo unshadow /etc/passwd /etc/shadow > "$output_file" 2>/dev/null
+            ;;
     esac
 
     if [[ -s "$output_file" ]]; then
@@ -64,6 +69,7 @@ enter_scavenger_path() {
         echo -e " 1) ZIP Archive (.zip)"
         echo -e " 2) RAR Archive (.rar)"
         echo -e " 3) PDF Document (.pdf)"
+        echo -e " 4) Linux System (/etc/shadow)"
         echo -e " q) Back to Main Menu"
         echo "------------------------------------------------"
         read -p "Your choice: " scav_choice
@@ -84,6 +90,10 @@ enter_scavenger_path() {
                     echo -e "${RED}File not found!${NC}"
                     sleep 1
                 fi
+                ;;
+            4)
+                # Direktaufruf für lokale System-Hashes
+                convert_artifact "Local System" "unshadow"
                 ;;
             q) return ;;
         esac
